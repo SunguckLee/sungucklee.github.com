@@ -112,14 +112,15 @@ CREATE TABLE poi_s2 (
 ) ENGINE=InnoDB;
 
 -- // Insert sample data
-INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.547287, 127.048764), "bakery",     "T-jure");
-INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.547516, 127.048372), "bakery",     "P-baguette");
-INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.546623, 127.047235), "restaurant", "K-Noodle");
-INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.546989, 127.044773), "restaurant", "H-Burger");
-INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.546325, 127.046296), "bar",        "Chicken");
-INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.545892, 127.044891), "cafe",       "P-Dabang");
-INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.546618, 127.044854), "bakery",     "Mildo");
-INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.546499, 127.045444), "bar",        "B-Beer");
+-- // Need to CAST as UNSIGNED because UDF does not support UNSIGNED of BIGINT
+INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, CAST(S2CELL(37.547287, 127.048764) AS UNSIGNED), "bakery",     "T-jure");
+INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, CAST(S2CELL(37.547516, 127.048372) AS UNSIGNED), "bakery",     "P-baguette");
+INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, CAST(S2CELL(37.546623, 127.047235) AS UNSIGNED), "restaurant", "K-Noodle");
+INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, CAST(S2CELL(37.546989, 127.044773) AS UNSIGNED), "restaurant", "H-Burger");
+INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, CAST(S2CELL(37.546325, 127.046296) AS UNSIGNED), "bar",        "Chicken");
+INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, CAST(S2CELL(37.545892, 127.044891) AS UNSIGNED), "cafe",       "P-Dabang");
+INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, CAST(S2CELL(37.546618, 127.044854) AS UNSIGNED), "bakery",     "Mildo");
+INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, CAST(S2CELL(37.546499, 127.045444) AS UNSIGNED), "bar",        "B-Beer");
 
 -- // Check inserted records
 -- // S2Longitude and S2Latitude is UDF to reverse-generate latitude and longitude from s2 cell id
