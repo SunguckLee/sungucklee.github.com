@@ -188,6 +188,64 @@ WHERE type='cafe'
 +...+------+--------------------+---------+-------+------+----------+--------------------------+
 ```
 
+UDF
+================
+- S2CELL : Generate S2 cell id from latitude and longitude pair
+```sql
+mysql> SELECT S2CELL(35.198362, 129.053922) as busan;
++---------------------+
+| busan               |
++---------------------+
+| 3848489404846389721 |
++---------------------+
+
+mysql> SELECT S2CELL(37.532600, 127.024612) as seoul;
++---------------------+
+| seoul               |
++---------------------+
+| 3854135263929674215 |
++---------------------+
+```
+
+- S2LATITUDE, S2LONGITUDE : Reverse generate latitude and longitude from S2 cell id
+```sql
+mysql> SELECT S2LATITUDE(s2cell(37.532600, 127.024612)) as latitude, S2LONGITUDE(s2cell(37.532600, 127.024612)) as longitude;
++-------------------+-------------------+
+| latitude          | longitude         |
++-------------------+-------------------+
+| 37.53260002139435 | 127.0246119770569 |
++-------------------+-------------------+
+```
+
+- S2DISTANCE : Calculate distance between S2 cell and (latitude, longitude)
+```sql
+mysql> SELECT S2DISTANCE(s2cell(37.532600, 127.024612), 35.198362, 129.053922) as distance_meters_from_seoul_to_busan;
++-------------------------------------+
+| distance_meters_from_seoul_to_busan |
++-------------------------------------+
+|                       316815.053085 |
++-------------------------------------+
+```
+
+How to install
+================
+```sql
+-- // Install UDF
+mysql> CREATE FUNCTION S2Cell RETURNS INTEGER SONAME 's2_udf.so';
+mysql> CREATE FUNCTION S2Distance RETURNS REAL SONAME 's2_udf.so';
+mysql> CREATE FUNCTION S2Latitude RETURNS REAL SONAME 's2_udf.so';
+mysql> CREATE FUNCTION S2Longitude RETURNS REAL SONAME 's2_udf.so';
+
+-- // Install S2 query rewrite plugin
+mysql> INSTALL PLUGIN s2_geometry SONAME 's2_query_rewriter.so';
+
+
+-- // Uninstall UDF
+mysql> DROP FUNCTION S2Cell;
+mysql> DROP FUNCTION S2Distance;
+mysql> DROP FUNCTION S2Latitude;
+mysql> DROP FUNCTION S2Longitude;
+
 
 ERROR
 ================
@@ -260,6 +318,40 @@ mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, /* Locati
 +-------+--------------------+
 |     9 | ERR_INVALID_RADIUS |
 +-------+--------------------+
-
 ```
+
+
+TROUBLE SHOOTING
+================
+- ERROR 1126 (HY000): Can't open shared library '/db/mysql/lib/plugin/s2_query_rewriter.so' (errno: 13 libgflags.so.2.1: cannot open shared object file: No such file or directory)
+   ==> yum install gflags-devel
+
+- ERROR 1126 (HY000): Can't open shared library '/db/mysql/lib/plugin/s2_query_rewriter.so' (errno: 13 libs2.so: cannot open shared object file: No such file or directory)
+   ==> copy libs2.so /usr/lib64/
+
+- ERROR 1126 (HY000): Can't open shared library '/db/mysql/lib/plugin/s2_query_rewriter.so' (errno: 13 /lib64/libs2.so: undefined symbol: _ZSt24__throw_out_of_range_fmtPKcz)
+   ==> clean all s2/*.o s2/*.so recursively, and rebuild s2 library (libs2.so)
+
+- Data truncation: Out of range value for column 's2cellid' at row 1
+     -- // Warning
+     -- // s2cell UDF return SIGNED BIGINT (Because MySQL UDF doesn't support return type of UNSIGNED BIGINT)
+     -- // Normally, GPS locations located in korea are no problem (Because these are not affected sign bit of BIGINT, e.g. not so big)
+     -- // But sometimes, GPS of smartphone return invalid gps location,
+     -- // For this reason, you need to casting BIGINT to BIGINT UNSINGED for the safety
+     -- //     e.g.) SELECT cast(s2cell(40.6891242,-89.5900406) as unsigned);
+     com.mysql.jdbc.MysqlDataTruncation: Data truncation: Out of range value for column 's2cellid' at row 1
+     Data truncated for s2cellid : SELECT s2cell(40.6891242,-89.5900406);
+
+
+LIMITATIONS
+============
+- Prepared-statement is not supported (Because this plugin will rewrite query before-parse)
+- Not allowed using comment in "S2WITHIN" block
+- Not tested with big area search which greater than hemisphere
+  
+TODO
+============
+- Find a way to inform error to client with MySQL ERROR. (if there's error, current implementation will return different format of result-set)
+- Does not parse if there's comment (both of single and multi line) in S2WITHIN() block.
+
 
