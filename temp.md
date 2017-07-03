@@ -8,8 +8,8 @@ WHERE type='cafe'
   AND ST_Within(location, ST_GeomFromText('POLYGON((127.041697 37.551675, 127.053327 37.551675, 127.053327 37.542488, 127.041697 37.542488, 127.041697 37.551675))'));`
 
 But MySQL spatial index (based on R-Tree index algorithm) does not allow combining geometry type and regular column.
-`
-CREATE TABLE poi (
+
+`CREATE TABLE poi (
   id BIGINT NOT NULL AUTO_INCREMENT,
   name VARCHAR(30) NOT NULL,
   type ENUM('cafe', 'restaurant', 'bakery', 'bar'),
@@ -17,17 +17,22 @@ CREATE TABLE poi (
   PRIMARY KEY (id),
   SPATIAL INDEX sx_location(type, location)
 ) ENGINE=InnoDB;
->> ERROR 1070 (42000): Too many key parts specified; max 1 parts allowed
-`
+>> ERROR 1070 (42000): Too many key parts specified; max 1 parts allowed`
 
 So MySQL optimizer can not utilize single index for both type and location column condition. Usually MySQL optimizer will choose spatial index for execution plan, but in this case MySQL has to read a lot of useless records (to filter out type<>'cafe').
 Even worse thing is that MySQL has to access(random access) full record to check "type='cafe'" condition because spatial index does not have type column data.
 
 This is why I added location(POINT) search feature using s2 geometry to MySQL.
 S2 geometry library prvoides a lot of functionality to implement goemetry search including below two main function.
-- Convert vector value to scalar value using hilbert curve.
+- Convert vector data to scalar value using hilbert curve.
 - Generate target cell(s2 cell id) to cover interesting area.
 
+S2 geometry search plugin for MySQL use this two main function of S2 geometry library and S2 geometry search plugin is based on MySQL 5.7 Query rewrite plugin. Actually S2 geometry search plugin is query rewrite plugin itself. And this patch support a few function to convert longitude and latitude pair to s2 cell id and vice-versa.
+
+
+First let's check how we can implement poi search with mysql spatial index.
+
+`-- // Create poi table with spatial index on location gemetry type column
 CREATE TABLE poi (
   id BIGINT NOT NULL AUTO_INCREMENT,
   name VARCHAR(30) NOT NULL,
@@ -35,9 +40,9 @@ CREATE TABLE poi (
   location GEOMETRY NOT NULL, 
   PRIMARY KEY (id),
   SPATIAL INDEX sx_location(location)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB;`
 
-
+`-- // Insert a few sample data
 INSERT INTO poi(id, location, type, name) VALUES (NULL, POINT(127.048764, 37.547287), "bakery",     "T-jure");
 INSERT INTO poi(id, location, type, name) VALUES (NULL, POINT(127.048372, 37.547516), "bakery",     "P-baguette");
 INSERT INTO poi(id, location, type, name) VALUES (NULL, POINT(127.047235, 37.546623), "restaurant", "K-Noodle");
@@ -45,9 +50,10 @@ INSERT INTO poi(id, location, type, name) VALUES (NULL, POINT(127.044773, 37.546
 INSERT INTO poi(id, location, type, name) VALUES (NULL, POINT(127.046296, 37.546325), "bar",        "Chicken");
 INSERT INTO poi(id, location, type, name) VALUES (NULL, POINT(127.044891, 37.545892), "cafe",       "P-Dabang");
 INSERT INTO poi(id, location, type, name) VALUES (NULL, POINT(127.044854, 37.546618), "bakery",     "Mildo");
-INSERT INTO poi(id, location, type, name) VALUES (NULL, POINT(127.045444, 37.546499), "bar",        "B-Beer");
+INSERT INTO poi(id, location, type, name) VALUES (NULL, POINT(127.045444, 37.546499), "bar",        "B-Beer");`
 
-[kadba@durl-main-my2][mysql 17:24:17] > select id, name, type, ST_AsText(location) from poi;
+`-- // Check inserted data
+mysql> select id, name, type, ST_AsText(location) from poi;
 +----+------------+------------+-----------------------------+
 | id | name       | type       | AsText(location)            |
 +----+------------+------------+-----------------------------+
@@ -59,15 +65,22 @@ INSERT INTO poi(id, location, type, name) VALUES (NULL, POINT(127.045444, 37.546
 |  6 | P-Dabang   | cafe       | POINT(127.044891 37.545892) |
 |  7 | Mildo      | bakery     | POINT(127.044854 37.546618) |
 |  8 | B-Beer     | bar        | POINT(127.045444 37.546499) |
-+----+------------+------------+-----------------------------+
++----+------------+------------+-----------------------------+`
 
+`-- // Make query to search poi in the specific boudning box with rectangle polygon
 mysql> SELECT id, name, type, ST_AsText(location) FROM poi WHERE type='cafe' AND ST_Within(location, ST_GeomFromText('POLYGON((127.041697 37.551675, 127.053327 37.551675, 127.053327 37.542488, 127.041697 37.542488, 127.041697 37.551675))'));
 +----+----------+------+-----------------------------+
 | id | name     | type | ST_AsText(location)         |
 +----+----------+------+-----------------------------+
 |  6 | P-Dabang | cafe | POINT(127.044891 37.545892) |
-+----+----------+------+-----------------------------+
++----+----------+------+-----------------------------+`
 
+But MySQL has to find all poi data within given rectangle area regardless of type column value if optimizer choose spatial index. The case using index on type column(if exist) is also non-optimized because MySQL has to find all poi data regardless of matching rectangle area.
+
+
+Now let's check the way to implement same search feature using S2 geometry search plugin.
+
+`-- // Create table
 CREATE TABLE poi_s2 (
   id BIGINT NOT NULL AUTO_INCREMENT,
   name VARCHAR(30) NOT NULL,
@@ -75,8 +88,9 @@ CREATE TABLE poi_s2 (
   s2location BIGINT UNSIGNED NOT NULL, 
   PRIMARY KEY (id),
   INDEX sx_location(type, s2location)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB;`
 
+`-- // Insert sample data
 INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.547287, 127.048764), "bakery",     "T-jure");
 INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.547516, 127.048372), "bakery",     "P-baguette");
 INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.546623, 127.047235), "restaurant", "K-Noodle");
@@ -84,8 +98,10 @@ INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.546989, 1
 INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.546325, 127.046296), "bar",        "Chicken");
 INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.545892, 127.044891), "cafe",       "P-Dabang");
 INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.546618, 127.044854), "bakery",     "Mildo");
-INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.546499, 127.045444), "bar",        "B-Beer");
+INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.546499, 127.045444), "bar",        "B-Beer");`
 
+`-- // Check inserted records
+-- // (S2Longitude and S2Latitude is UDF to reverse-generate latitude and longitude from s2 cell id)
 mysql> SELECT id, name, type, S2Longitude(s2location) as location_lon, S2Latitude(s2location) as location_lat, s2location FROM poi_s2;
 +----+------------+------------+--------------------+--------------------+---------------------+
 | id | name       | type       | location_lon       | location_lat       | s2location          |
@@ -98,8 +114,9 @@ mysql> SELECT id, name, type, S2Longitude(s2location) as location_lon, S2Latitud
 |  6 | P-Dabang   | cafe       | 127.04489096350927 | 37.545892027418084 | 3854136371285358265 |
 |  7 | Mildo      | bakery     | 127.04485403000865 |   37.5466179990086 | 3854136371093275229 |
 |  8 | B-Beer     | bar        | 127.04544398106482 |  37.54649901104369 | 3854136359591207909 |
-+----+------------+------------+--------------------+--------------------+---------------------+
++----+------------+------------+--------------------+--------------------+---------------------+`
 
+`-- // Query to find poi which is located in the give radius circle with type='cafe'
 SELECT id, name, type, S2Longitude(s2location) as location_lon, S2Latitude(s2location) as location_lat, s2location
 FROM poi_s2
 WHERE type='cafe' 
@@ -109,7 +126,7 @@ WHERE type='cafe'
 +----+----------+------+--------------------+--------------------+---------------------+
 |  6 | P-Dabang | cafe | 127.04489096350927 | 37.545892027418084 | 3854136371285358265 |
 +----+----------+------+--------------------+--------------------+---------------------+
-1 row in set, 1 warning (0.01 sec)
+1 row in set, 1 warning (0.01 sec)`
 
 SHOW WARNINGS;
 SELECT id, name, type, S2Longitude(s2location) as location_lon, S2Latitude(s2location) as location_lat, s2location
