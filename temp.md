@@ -356,3 +356,8 @@ TODO
 - Does not parse if there's comment (both of single and multi line) in S2WITHIN() block.
 
 
+REFERENCEs
+============
+- https://docs.google.com/presentation/d/1Hl4KapfAENAOf4gv-pSngKwvS_jwNVHRPZTTDzXXn6Q/
+- http://blog.christianperone.com/2015/08/googles-s2-geometry-on-the-sphere-cells-and-hilbert-curve/
+- https://code.google.com/archive/p/s2-geometry-library/source
