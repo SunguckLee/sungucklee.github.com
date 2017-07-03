@@ -6,7 +6,8 @@ If your service need to search categorized-poi data (like below example), then y
 ```sql
 SELECT * FROM poi 
 WHERE type='cafe' 
-  AND ST_Within(location, ST_GeomFromText('POLYGON((127.041697 37.551675, 127.053327 37.551675, 127.053327 37.542488, 127.041697 37.542488, 127.041697 37.551675))'));```
+  AND ST_Within(location, ST_GeomFromText('POLYGON((127.041697 37.551675, 127.053327 37.551675, 127.053327 37.542488, 127.041697 37.542488, 127.041697 37.551675))'));
+```
 
 But MySQL spatial index (based on R-Tree index algorithm) does not allow combining geometry type and regular column.
 
