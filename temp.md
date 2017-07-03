@@ -1,3 +1,6 @@
+
+Intro
+===============
 MySQL supports geometry data type and spatial index with R-Tree index algorithm.
 But this spatial index based on R-Tree index algorithm may be sufficient or not based on your service requirements.
 
@@ -27,6 +30,9 @@ CREATE TABLE poi (
 So MySQL optimizer can not utilize single index for both type and location column condition. Usually MySQL optimizer will choose spatial index for execution plan, but in this case MySQL has to read a lot of useless records (to filter out type<>'cafe').
 Even worse thing is that MySQL has to access(random access) full record to check "type='cafe'" condition because spatial index does not have type column data.
 
+
+Why S2 geometry
+===============
 This is why I added location(POINT) search feature using s2 geometry to MySQL.
 S2 geometry library prvoides a lot of functionality to implement goemetry search including below two main function.
 - Convert vector data to scalar value using hilbert curve.
@@ -34,7 +40,8 @@ S2 geometry library prvoides a lot of functionality to implement goemetry search
 
 S2 geometry search plugin for MySQL use this two main function of S2 geometry library and S2 geometry search plugin is based on MySQL 5.7 Query rewrite plugin. Actually S2 geometry search plugin is query rewrite plugin itself. And this patch support a few function to convert longitude and latitude pair to s2 cell id and vice-versa.
 
-
+MySQL spatial index
+-------------------
 First let's check how we can implement poi search with mysql spatial index.
 
 ```sql
@@ -88,6 +95,8 @@ WHERE type='cafe'
 But MySQL has to find all poi data within given rectangle area regardless of type column value if optimizer choose spatial index. The case using index on type column(if exist) is also non-optimized because MySQL has to find all poi data regardless of matching rectangle area.
 
 
+S2 geometry index
+-------------------
 Now let's check the way to implement same search feature using S2 geometry search plugin.
 
 ```sql
@@ -143,6 +152,8 @@ WHERE type='cafe'
 
 In above example, s2location column is just bigint(unsigned) column so we can make compound index using type and s2location column. And S2 geometry plugin will rewrite S2WITHIN part as normal query condition which can be parsed by MySQL optimizer. MySQL will show warning message when S2 geometry query rewrite plugin rewrites user query and you can check how query is rewritten with "SHOW WARNINGS" command.
 
+How query is rewritten
+-----------------------
 ```sql
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475, 10);
 +----+----------+------+---------------------+
@@ -158,7 +169,8 @@ Note: Query 'SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.
 
 As shown above, "S2WITHIN(s2location, 37.547273, 127.047171, 475)" part is written to "(s2location BETWEEN 3854136322323120129 AND 3854136322457337855 OR s2location BETWEEN 3854136349569318913 AND 3854136364601704447 ...". And MySQL optimizer will prepare execution plan with this rewritten query not original user query. S2 geometry query rewrite plugin is kind of "before parser" type. Because of this "before parser" type, we can't use prepared-statement with this S2 geometry query rewrite plugin.
 
-
+Filter-out mismatched poi
+-------------------------
 And one more thing is that we can SELECT more accurate result with fast covering index(of query execution plan).
 S2 geometry also find poi data using several rectangles(diamond shape box), So the result of "S2WITHIN" search also contains poi data not contained circle area of given radius. But using S2Distance UDF, we can eliminate poi not contained in exact circle area. And this filtering task can be processed as "covering index" without accessing poi record data(with small cost). 
 
@@ -176,9 +188,9 @@ WHERE type='cafe'
 +...+------+--------------------+---------+-------+------+----------+--------------------------+
 ```
 
---------
+
 ERROR
---------
+================
 Still there's no proper way to report error of Query rewrite plugin, so S2 geometry query rewrite plugin may report error using query result. This is not a good way to report error becuase the shape of query result is changed. But still I can not find better way to report error.
 
 S2 geometry query rewrite plugin generate several errors if arguments are not valid.
