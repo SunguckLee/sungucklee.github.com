@@ -245,6 +245,7 @@ mysql> DROP FUNCTION S2Cell;
 mysql> DROP FUNCTION S2Distance;
 mysql> DROP FUNCTION S2Latitude;
 mysql> DROP FUNCTION S2Longitude;
+```
 
 
 ERROR
