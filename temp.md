@@ -1,13 +1,11 @@
 MySQL supports geometry data type and spatial index with R-Tree index algorithm.
-But this spatial index based on R-Tree index algorithm may be sufficient or not based on your service request.
+But this spatial index based on R-Tree index algorithm may be sufficient or not based on your service requirements.
 
 If your service need to search categorized-poi data (like below example), then you may want to make compound index with category column.
 
-`
-SELECT * FROM poi 
+`SELECT * FROM poi 
 WHERE type='cafe' 
-  AND ST_Within(location, ST_GeomFromText('POLYGON((127.041697 37.551675, 127.053327 37.551675, 127.053327 37.542488, 127.041697 37.542488, 127.041697 37.551675))'));
-`
+  AND ST_Within(location, ST_GeomFromText('POLYGON((127.041697 37.551675, 127.053327 37.551675, 127.053327 37.542488, 127.041697 37.542488, 127.041697 37.551675))'));`
 
 But MySQL spatial index (based on R-Tree index algorithm) does not allow combining geometry type and regular column.
 `
@@ -25,7 +23,11 @@ CREATE TABLE poi (
 So MySQL optimizer can not utilize single index for both type and location column condition. Usually MySQL optimizer will choose spatial index for execution plan, but in this case MySQL has to read a lot of useless records (to filter out type<>'cafe').
 Even worse thing is that MySQL has to access(random access) full record to check "type='cafe'" condition because spatial index does not have type column data.
 
-This is why I added s2 geometry
+This is why I added location(POINT) search feature using s2 geometry to MySQL.
+S2 geometry library prvoides a lot of functionality to implement goemetry search including below two main function.
+- Convert vector value to scalar value using hilbert curve.
+- Generate target cell(s2 cell id) to cover interesting area.
+
 CREATE TABLE poi (
   id BIGINT NOT NULL AUTO_INCREMENT,
   name VARCHAR(30) NOT NULL,
