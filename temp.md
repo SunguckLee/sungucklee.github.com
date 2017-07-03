@@ -20,6 +20,7 @@ CREATE TABLE poi (
   PRIMARY KEY (id),
   SPATIAL INDEX sx_location(type, location)
 ) ENGINE=InnoDB;
+
 >> ERROR 1070 (42000): Too many key parts specified; max 1 parts allowed
 ```
 
@@ -97,7 +98,8 @@ CREATE TABLE poi_s2 (
   type ENUM('cafe', 'restaurant', 'bakery', 'bar'),
   s2location BIGINT UNSIGNED NOT NULL, 
   PRIMARY KEY (id),
-  INDEX sx_location(type, s2location)
+  /* Compound index with (type + s2location), s2location column is just bigint type so we can make compound index */
+  INDEX ix_type_location(type, s2location)
 ) ENGINE=InnoDB;
 
 -- // Insert sample data
@@ -108,10 +110,10 @@ INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.546989, 1
 INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.546325, 127.046296), "bar",        "Chicken");
 INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.545892, 127.044891), "cafe",       "P-Dabang");
 INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.546618, 127.044854), "bakery",     "Mildo");
-INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.546499, 127.045444), "bar",        "B-Beer");`
+INSERT INTO poi_s2(id, s2location, type, name) VALUES (NULL, S2CELL(37.546499, 127.045444), "bar",        "B-Beer");
 
 -- // Check inserted records
--- // (S2Longitude and S2Latitude is UDF to reverse-generate latitude and longitude from s2 cell id)
+-- // S2Longitude and S2Latitude is UDF to reverse-generate latitude and longitude from s2 cell id
 mysql> SELECT id, name, type, S2Longitude(s2location) as location_lon, S2Latitude(s2location) as location_lat, s2location FROM poi_s2;
 +----+------------+------------+--------------------+--------------------+---------------------+
 | id | name       | type       | location_lon       | location_lat       | s2location          |
@@ -139,19 +141,9 @@ WHERE type='cafe'
 1 row in set, 1 warning (0.01 sec)
 ```
 
-SHOW WARNINGS;
-SELECT id, name, type, S2Longitude(s2location) as location_lon, S2Latitude(s2location) as location_lat, s2location
-FROM poi_s2 
-WHERE type='cafe' 
-  AND (s2location BETWEEN 3854136322323120129 AND 3854136322457337855 
-       OR s2location BETWEEN 3854136349569318913 AND 3854136364601704447 
-       OR s2location BETWEEN 3854136366715633665 AND 3854136375473340415 
-       OR s2location BETWEEN 3854136378023477249 AND 3854136379097219071 
-       OR s2location BETWEEN 3854136379634089985 AND 3854136386076540927 
-       OR s2location BETWEEN ...
-  );
+In above example, s2location column is just bigint(unsigned) column so we can make compound index using type and s2location column. And S2 geometry plugin will rewrite S2WITHIN part as normal query condition which can be parsed by MySQL optimizer. MySQL will show warning message when S2 geometry query rewrite plugin rewrites user query and you can check how query is rewritten with "SHOW WARNINGS" command.
 
-
+```sql
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475, 10);
 +----+----------+------+---------------------+
 | id | name     | type | s2location          |
@@ -162,19 +154,15 @@ mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273
 
 mysql> SHOW WARNINGS;
 Note: Query 'SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475, 10)' rewritten to 'SELECT * FROM poi_s2 WHERE type='cafe' AND  (s2location BETWEEN 3854136322323120129 AND 3854136322457337855 OR s2location BETWEEN 3854136345274351617 AND 3854136388224024575 OR s2location BETWEEN 3854136396780404737 AND 3854136401108926463 OR s2location BETWEEN 3854136512778076161 AND 3854136514925559807) s2loc' by a query rewrite plugin
+```
 
-mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475, 5);
-+----+----------+------+---------------------+
-| id | name     | type | s2location          |
-+----+----------+------+---------------------+
-|  6 | P-Dabang | cafe | 3854136371285358265 |
-+----+----------+------+---------------------+
-1 row in set, 1 warning (0.00 sec)
-
-mysql> SHOW WARNINGS;
-Note : Query 'SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475, 5)' rewritten to 'SELECT * FROM poi_s2 WHERE type='cafe' AND  (s2location BETWEEN 3854136319504547841 AND 3854136388224024575 OR s2location BETWEEN 3854136396780404737 AND 3854136405403893759 OR s2location BETWEEN 3854136512778076161 AND 3854136514925559807) ' by a query rewrite plugin
+As shown above, "S2WITHIN(s2location, 37.547273, 127.047171, 475)" part is written to "(s2location BETWEEN 3854136322323120129 AND 3854136322457337855 OR s2location BETWEEN 3854136349569318913 AND 3854136364601704447 ...". And MySQL optimizer will prepare execution plan with this rewritten query not original user query. S2 geometry query rewrite plugin is kind of "before parser" type. Because of this "before parser" type, we can't use prepared-statement with this S2 geometry query rewrite plugin.
 
 
+And one more thing is that we can SELECT more accurate result with fast covering index(of query execution plan).
+S2 geometry also find poi data using several rectangles(diamond shape box), So the result of "S2WITHIN" search also contains poi data not contained circle area of given radius. But using S2Distance UDF, we can eliminate poi not contained in exact circle area. And this filtering task can be processed as "covering index" without accessing poi record data(with small cost). 
+
+```sql
 mysql> SELECT id, name, type, S2LONGITUDE(s2location) as location_lon, S2LATITUDE(s2location) as location_lat, s2location
 FROM poi_s2
 WHERE type='cafe' 
@@ -186,42 +174,58 @@ WHERE type='cafe'
 +...+------+--------------------+---------+-------+------+----------+--------------------------+
 |...| ref  | ix_type_s2location | 2       | const |    7 |    79.03 | Using where; Using index |
 +...+------+--------------------+---------+-------+------+----------+--------------------------+
+```
 
+--------
+ERROR
+--------
+Still there's no proper way to report error of Query rewrite plugin, so S2 geometry query rewrite plugin may report error using query result. This is not a good way to report error becuase the shape of query result is changed. But still I can not find better way to report error.
 
+S2 geometry query rewrite plugin generate several errors if arguments are not valid.
 
->> Radius must be less than 500 Km
+- Radius must be less than 500 Km
+```sql
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 4750000);
 +-------+--------------------+
 | errno | errmsg             |
 +-------+--------------------+
 |     9 | ERR_INVALID_RADIUS |
 +-------+--------------------+
+```
 
->> Latitude must be -90 ~ 90
+- Latitude must be between -90 and 90
+```sql
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 370.547273, 127.047171, 475000);
 +-------+----------------------+
 | errno | errmsg               |
 +-------+----------------------+
 |     7 | ERR_INVALID_LATITUDE |
 +-------+----------------------+
+```
 
->> Longitude must be -180 ~ 180
+- Longitude must be between -180 and 180
+```sql
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 1270.047171, 475000);
 +-------+-----------------------+
 | errno | errmsg                |
 +-------+-----------------------+
 |     8 | ERR_INVALID_LONGITUDE |
 +-------+-----------------------+
+```
 
->> S2WITHIN must have 4 arguments at least (maximum 5 arguments)
+- S2WITHIN must have 4 arguments at least (maximum 5 arguments)
+```sql
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location);
 +-------+------------------------+
 | errno | errmsg                 |
 +-------+------------------------+
 |     3 | ERR_INVALID_PARAMETERS |
 +-------+------------------------+
+```
 
->> 
+- S2 geometry does not remove comment of "S2WITHIN(...)" block, so it may disturb parsing arguments of plugin
+```sql
+-- // Usually mysql client will remove comment of query, in this case no problem.
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475000 /* Location of Ttukseom station */);
 +----+----------+------+--------------------+--------------------+---------------------+
 | id | name     | type | location_lon       | location_lat       | s2location          |
@@ -229,9 +233,8 @@ mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273
 |  6 | P-Dabang | cafe | 127.04489096350927 | 37.545892027418084 | 3854136371285358265 |
 +----+----------+------+--------------------+--------------------+---------------------+
 
-
+-- // But if you run mysql client with "--comments" option or any other client or connectors, it could make unexpected errors
 # mysql -udba -p --comments
-
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475000 /* Location of Ttukseom station */);
 +-------+----------------------+
 | errno | errmsg               |
@@ -245,3 +248,6 @@ mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, /* Locati
 +-------+--------------------+
 |     9 | ERR_INVALID_RADIUS |
 +-------+--------------------+
+
+```
+
