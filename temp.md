@@ -362,6 +362,7 @@ mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location);
 
 * S2 geometry does not remove comment of "S2WITHIN(...)" block, so it may disturb parsing arguments of plugin
   * Usually mysql client will remove comment of query, in this case no problem.
+  * But if you start mysql client with "\--comments" option or use similiar optoins, it could make unexpected errors.
 ```sql
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475000 /* Location of Ttukseom station */);
 +----+----------+------+--------------------+--------------------+---------------------+
@@ -369,9 +370,7 @@ mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273
 +----+----------+------+--------------------+--------------------+---------------------+
 |  6 | P-Dabang | cafe | 127.04489096350927 | 37.545892027418084 | 3854136371285358265 |
 +----+----------+------+--------------------+--------------------+---------------------+
-```
-  * But if you start mysql client with "\--comments" option or use similiar optoins, it could make unexpected errors. 
-```sql
+
 shell> mysql -udba -p --comments
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475000 /* Location of Ttukseom station */);
 +-------+----------------------+
