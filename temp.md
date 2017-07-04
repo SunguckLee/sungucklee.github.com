@@ -104,9 +104,7 @@ To search poi data with S2 geometry query rewrite plugin, you have to use "S2WIT
   * latitude : latitude value (DOUBLE in range of -80.0 ~ 80.0).
   * longitude : longitude value (DOUBLE in range of -180.0 ~ 180.0).
   * distance : circle radius of interesting area in meter.
-  * max_cells : (OPTIONAL) how many cell to use for search poi data. Increasing this argument, S2 geometry search will choose more fragment of cell (eventually query will be generated as use more OR operator). Decreasing this argument, S2 geometry search will use less cell (eventually query will be generated as use less OR operator). If omit 20 is used as max_cells.
-    * Bigger max_cells than default(20) : Increasing accuracy, Decreasing performance (Relatively)
-    * Less max_cells than default(20) : Faster first row (less latency for first row), Decreasing accuracy
+  * max_cells : (OPTIONAL) how many cell to use for search poi data. 
 
 Now let's check the way to implement same search feature using S2 geometry search plugin.
 
@@ -184,6 +182,51 @@ As shown above, "S2WITHIN(s2location, 37.547273, 127.047171, 475)" part is writt
 
 How to determine max cell to search
 -----------------------------------
+S2 geometry search find S2 cells which cover search area first. S2 cell has 24 level of cells and each level of cell is divided 4 cells of child level(child_level = parent_level + 1). So the combinations of S2 cells to cover interesting area are various. if allowed many cells, S2 geometry library will find many smaller level of cells and search result might be more accurate. But allowed only a few cells, S2 geometry library will find a few bigger level of cells and these cells may contains much useless area. But greater max_cells argument, S2 geometry query rewrite plugin will generate more OR-concatenated query and this might be not efficient to MySQL optimizer.
+
+If given max_cells is 20, S2 geometry query rewrite plugin will generate query which has maximum 20 OR concatenated query. S2 goemetry query rewrite plugin will merge if neighbors are contigous, so final query might be smaller than give max_cells.
+
+```sql
+-- // max_cells = 10, Generated query will have OR condition up to 10 (maximum)
+mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475, 10);
++----+----------+------+---------------------+
+| id | name     | type | s2location          |
++----+----------+------+---------------------+
+|  6 | P-Dabang | cafe | 3854136371285358265 |
++----+----------+------+---------------------+
+
+-- // This case, there's 4 OR condition
+mysql> SHOW WARNINGS;
+Note: Query 'SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475, 10)' rewritten to 'SELECT * FROM poi_s2 WHERE type='cafe' AND  (
+  s2location BETWEEN 3854136322323120129 AND 3854136322457337855 
+  OR s2location BETWEEN 3854136345274351617 AND 3854136388224024575 
+  OR s2location BETWEEN 3854136396780404737 AND 3854136401108926463 
+  OR s2location BETWEEN 3854136512778076161 AND 3854136514925559807) s2loc' by a query rewrite plugin
+
+-- // max_cells = 5, Generated query will have OR condition up to 5 (maximum)
+mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475, 5);
++----+----------+------+---------------------+
+| id | name     | type | s2location          |
++----+----------+------+---------------------+
+|  6 | P-Dabang | cafe | 3854136371285358265 |
++----+----------+------+---------------------+
+
+-- // This case, there's 3 OR condition
+mysql> SHOW WARNINGS;
+Note : Query 'SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475, 5)' rewritten to 'SELECT * FROM poi_s2 WHERE type='cafe' AND  (
+  s2location BETWEEN 3854136319504547841 AND 3854136388224024575 
+  OR s2location BETWEEN 3854136396780404737 AND 3854136405403893759 
+  OR s2location BETWEEN 3854136512778076161 AND 3854136514925559807) ' by a query rewrite plugin
+
+```
+
+Increasing this argument, S2 geometry search will choose more fragment of cell (eventually query will be generated as use more OR operator). Decreasing this argument, S2 geometry search will use less cell (eventually query will be generated as use less OR operator). If omit 20 is used as max_cells.
+    * Bigger max_cells than default(20) : Increasing accuracy, Decreasing performance (Relatively)
+    * Less max_cells than default(20) : Faster first row (less latency for first row), Decreasing accuracy
+
+If max_cells argument is not provided, S2 geometry query rewrite plugin will use DEFAULT value(20), and Usally default value is proper choice for both performance and accuracy.
+
+And also you can make query accuracy by appending S2DISTANCE UDF function, and this UDF will filter out mismatched poi data without accessing row data (covering index).
 
 
 Filter-out mismatched poi
@@ -381,6 +424,8 @@ TODO
 
 REFERENCEs
 ============
+If you are not familiar to S2 geometry, please check these link out first.
+
 - https://docs.google.com/presentation/d/1Hl4KapfAENAOf4gv-pSngKwvS_jwNVHRPZTTDzXXn6Q/
 - http://blog.christianperone.com/2015/08/googles-s2-geometry-on-the-sphere-cells-and-hilbert-curve/
 - https://code.google.com/archive/p/s2-geometry-library/source
