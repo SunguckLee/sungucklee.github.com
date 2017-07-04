@@ -321,7 +321,7 @@ Still there's no proper way to report error of Query rewrite plugin, so S2 geome
 
 S2 geometry query rewrite plugin generate several errors if arguments are not valid.
 
-- Radius must be less than 500 Km
+* Radius must be less than 500 Km
 ```sql
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 4750000);
 +-------+--------------------+
@@ -331,7 +331,7 @@ mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273
 +-------+--------------------+
 ```
 
-- Latitude must be between -90 and 90
+* Latitude must be between -90 and 90
 ```sql
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 370.547273, 127.047171, 475000);
 +-------+----------------------+
@@ -341,7 +341,7 @@ mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 370.54727
 +-------+----------------------+
 ```
 
-- Longitude must be between -180 and 180
+* Longitude must be between -180 and 180
 ```sql
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 1270.047171, 475000);
 +-------+-----------------------+
@@ -351,7 +351,7 @@ mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273
 +-------+-----------------------+
 ```
 
-- S2WITHIN must have 4 arguments at least (maximum 5 arguments)
+* S2WITHIN must have 4 arguments at least (maximum 5 arguments)
 ```sql
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location);
 +-------+------------------------+
@@ -361,17 +361,19 @@ mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location);
 +-------+------------------------+
 ```
 
-- S2 geometry does not remove comment of "S2WITHIN(...)" block, so it may disturb parsing arguments of plugin
+* S2 geometry does not remove comment of "S2WITHIN(...)" block, so it may disturb parsing arguments of plugin
+  * Usually mysql client will remove comment of query, in this case no problem.
 ```sql
--- // Usually mysql client will remove comment of query, in this case no problem.
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475000 /* Location of Ttukseom station */);
 +----+----------+------+--------------------+--------------------+---------------------+
 | id | name     | type | location_lon       | location_lat       | s2location          |
 +----+----------+------+--------------------+--------------------+---------------------+
 |  6 | P-Dabang | cafe | 127.04489096350927 | 37.545892027418084 | 3854136371285358265 |
 +----+----------+------+--------------------+--------------------+---------------------+
+```
 
--- // But if you run mysql client with "--comments" option or any other client or connectors, it could make unexpected errors
+  * But if you run mysql client with "--comments" option or any other client or connectors, it could make unexpected errors
+```sql
 # mysql -udba -p --comments
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475000 /* Location of Ttukseom station */);
 +-------+----------------------+
