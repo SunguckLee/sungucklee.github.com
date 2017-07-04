@@ -343,7 +343,7 @@ TROUBLE SHOOTING
 * Data truncation: Out of range value for column 's2cellid' at row 1
   * s2cell UDF return SIGNED BIGINT (Because MySQL UDF doesn't support return type of UNSIGNED BIGINT). But sometimes, GPS of smartphone return invalid gps location. For this reason, you need to casting BIGINT to BIGINT UNSINGED for the safety.
   * For example
-  ```sql
+```sql
   SELECT cast(s2cell(40.6891242,-89.5900406) as unsigned);
      com.mysql.jdbc.MysqlDataTruncation: Data truncation: Out of range value for column 's2cellid' at row 1
      Data truncated for s2cellid : SELECT s2cell(40.6891242,-89.5900406);
