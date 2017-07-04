@@ -97,6 +97,17 @@ But MySQL has to find all poi data within given rectangle area regardless of typ
 
 S2 geometry index
 -------------------
+To search poi data with S2 geometry query rewrite plugin, you have to use "S2WITH" modifier. It looks like MySQL function or UDF but actually it's just keyword for query rewrite plugin.
+
+* S2WITHIN(s2_geometry_column_name, latitude, longitude, distance[, max_cells])
+  * s2_geometry_column_name : column name which store S2 cell id.
+  * latitude : latitude value (DOUBLE in range of -80.0 ~ 80.0).
+  * longitude : longitude value (DOUBLE in range of -180.0 ~ 180.0).
+  * distance : circle radius of interesting area in meter.
+  * max_cells : (OPTIONAL) how many cell to use for search poi data. Increasing this argument, S2 geometry search will choose more fragment of cell (eventually query will be generated as use more OR operator). Decreasing this argument, S2 geometry search will use less cell (eventually query will be generated as use less OR operator). If omit 20 is used as max_cells.
+    * Bigger max_cells than default(20) : Increasing accuracy, Decreasing performance (Relatively)
+    * Less max_cells than default(20) : Faster first row (less latency for first row), Decreasing accuracy
+
 Now let's check the way to implement same search feature using S2 geometry search plugin.
 
 ```sql
@@ -170,6 +181,11 @@ Note: Query 'SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.
 
 As shown above, "S2WITHIN(s2location, 37.547273, 127.047171, 475)" part is written to "(s2location BETWEEN 3854136322323120129 AND 3854136322457337855 OR s2location BETWEEN 3854136349569318913 AND 3854136364601704447 ...". And MySQL optimizer will prepare execution plan with this rewritten query not original user query. S2 geometry query rewrite plugin is kind of "before parser" type. Because of this "before parser" type, we can't use prepared-statement with this S2 geometry query rewrite plugin.
 
+
+How to determine max cell to search
+-----------------------------------
+
+
 Filter-out mismatched poi
 -------------------------
 And one more thing is that we can SELECT more accurate result with fast covering index(of query execution plan).
@@ -188,6 +204,7 @@ WHERE type='cafe'
 |...| ref  | ix_type_s2location | 2       | const |    7 |    79.03 | Using where; Using index |
 +...+------+--------------------+---------+-------+------+----------+--------------------------+
 ```
+
 
 UDF
 ================
