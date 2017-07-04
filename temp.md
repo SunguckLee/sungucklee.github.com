@@ -412,9 +412,10 @@ TROUBLE SHOOTING
 
 LIMITATIONS
 ============
-- Prepared-statement is not supported (Because this plugin will rewrite query before-parsing)
-- Not allowed using comment in "S2WITHIN" block
-- Not tested with big area search which greater than hemisphere
+- S2 geometry query rewrite plugin works only for searching POINT type data not other goemetry types.
+- Prepared-statement is not supported (Because this plugin will rewrite query before-parsing).
+- Not allowed using comment in "S2WITHIN" block.
+- Not tested with big area search which greater than hemisphere.
 
 TODO
 ============
