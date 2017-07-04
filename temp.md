@@ -217,7 +217,6 @@ Note : Query 'SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37
   s2location BETWEEN 3854136319504547841 AND 3854136388224024575 
   OR s2location BETWEEN 3854136396780404737 AND 3854136405403893759 
   OR s2location BETWEEN 3854136512778076161 AND 3854136514925559807) ' by a query rewrite plugin
-
 ```
 
 Increasing this argument, S2 geometry search will choose more fragment of cell (eventually query will be generated as use more OR operator). Decreasing this argument, S2 geometry search will use less cell (eventually query will be generated as use less OR operator). If omit 20 is used as max_cells.
@@ -373,6 +372,7 @@ mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273
 ```
 
   * But if you run mysql client with "\--comments" option or any other client or connectors, it could make unexpected errors. 
+
 ```sql
 shell> mysql -udba -p --comments
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475000 /* Location of Ttukseom station */);
