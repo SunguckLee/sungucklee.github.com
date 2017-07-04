@@ -335,9 +335,7 @@ TROUBLE SHOOTING
    ==> clean all s2/*.o s2/*.so recursively, and rebuild s2 library (libs2.so)
 
 - Data truncation: Out of range value for column 's2cellid' at row 1
-     -- // Warning
      -- // s2cell UDF return SIGNED BIGINT (Because MySQL UDF doesn't support return type of UNSIGNED BIGINT)
-     -- // Normally, GPS locations located in korea are no problem (Because these are not affected sign bit of BIGINT, e.g. not so big)
      -- // But sometimes, GPS of smartphone return invalid gps location,
      -- // For this reason, you need to casting BIGINT to BIGINT UNSINGED for the safety
      -- //     e.g.) SELECT cast(s2cell(40.6891242,-89.5900406) as unsigned);
@@ -347,10 +345,10 @@ TROUBLE SHOOTING
 
 LIMITATIONS
 ============
-- Prepared-statement is not supported (Because this plugin will rewrite query before-parse)
+- Prepared-statement is not supported (Because this plugin will rewrite query before-parsing)
 - Not allowed using comment in "S2WITHIN" block
 - Not tested with big area search which greater than hemisphere
-  
+
 TODO
 ============
 - Find a way to inform error to client with MySQL ERROR. (if there's error, current implementation will return different format of result-set)
