@@ -191,16 +191,18 @@ WHERE type='cafe'
 
 UDF
 ================
-- S2CELL : Generate S2 cell id from latitude and longitude pair
+* S2CELL(latitude DOUBLE, longitude DOUBLE) RETURN BIGINT
+  * Generate S2 cell id from latitude and longitude pair
+  * Need to CAST RETURN VALUE to BIGINT UNSINGED
 ```sql
-mysql> SELECT S2CELL(35.198362, 129.053922) as busan;
+mysql> SELECT CAST(S2CELL(35.198362, 129.053922) AS UNSIGNED) as busan;
 +---------------------+
 | busan               |
 +---------------------+
 | 3848489404846389721 |
 +---------------------+
 
-mysql> SELECT S2CELL(37.532600, 127.024612) as seoul;
+mysql> SELECT CAST(S2CELL(37.532600, 127.024612) AS UNSIGNED) as seoul;
 +---------------------+
 | seoul               |
 +---------------------+
@@ -208,7 +210,9 @@ mysql> SELECT S2CELL(37.532600, 127.024612) as seoul;
 +---------------------+
 ```
 
-- S2LATITUDE, S2LONGITUDE : Reverse generate latitude and longitude from S2 cell id
+* S2LATITUDE(s2cell BIGINT UNSIGNED) RETURN DOUBLE
+* S2LONGITUDE(s2cell BIGINT UNSIGNED) RETURN DOUBLE
+  * Reverse generate latitude and longitude from S2 cell id
 ```sql
 mysql> SELECT S2LATITUDE(s2cell(37.532600, 127.024612)) as latitude, S2LONGITUDE(s2cell(37.532600, 127.024612)) as longitude;
 +-------------------+-------------------+
@@ -218,7 +222,9 @@ mysql> SELECT S2LATITUDE(s2cell(37.532600, 127.024612)) as latitude, S2LONGITUDE
 +-------------------+-------------------+
 ```
 
-- S2DISTANCE : Calculate distance between S2 cell and (latitude, longitude)
+* S2DISTANCE(s2cell_id BIGINT UNSIGNED, latitude DOUBLE, longitude DOUBLE)
+  * Calculate distance between S2 cell and (latitude, longitude)
+  * Return value is distance in *METERS*
 ```sql
 mysql> SELECT S2DISTANCE(s2cell(37.532600, 127.024612), 35.198362, 129.053922) as distance_meters_from_seoul_to_busan;
 +-------------------------------------+
