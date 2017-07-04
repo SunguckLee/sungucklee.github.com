@@ -374,7 +374,7 @@ mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273
 
   * But if you run mysql client with "--comments" option or any other client or connectors, it could make unexpected errors
 ```sql
-\# mysql -udba -p --comments
+$ mysql -udba -p --comments
 mysql> SELECT * FROM poi_s2 WHERE type='cafe' AND S2WITHIN(s2location, 37.547273, 127.047171, 475000 /* Location of Ttukseom station */);
 +-------+----------------------+
 | errno | errmsg               |
