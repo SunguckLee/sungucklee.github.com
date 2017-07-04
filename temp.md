@@ -222,7 +222,7 @@ mysql> SELECT S2LATITUDE(s2cell(37.532600, 127.024612)) as latitude, S2LONGITUDE
 +-------------------+-------------------+
 ```
 
-* S2DISTANCE(s2cell_id BIGINT UNSIGNED, latitude DOUBLE, longitude DOUBLE)
+* S2DISTANCE(s2cell_id BIGINT UNSIGNED, latitude DOUBLE, longitude DOUBLE) RETURN DOUBLE
   * Calculate distance between S2 cell and (latitude, longitude)
   * Return value is distance in *METERS*
 ```sql
