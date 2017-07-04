@@ -338,7 +338,7 @@ TROUBLE SHOOTING
   * copy libs2.so /usr/lib64/
 
 * ERROR 1126 (HY000): Can't open shared library '/db/mysql/lib/plugin/s2_query_rewriter.so' (errno: 13 /lib64/libs2.so: undefined symbol: _ZSt24__throw_out_of_range_fmtPKcz)
-  * clean all s2/*.o s2/*.so recursively, and rebuild s2 library (libs2.so)
+  * clean all s2/\*.o s2/\*.so recursively, and rebuild s2 library (libs2.so)
 
 * Data truncation: Out of range value for column 's2cellid' at row 1
   * s2cell UDF return SIGNED BIGINT (Because MySQL UDF doesn't support return type of UNSIGNED BIGINT). But sometimes, GPS of smartphone return invalid gps location. For this reason, you need to casting BIGINT to BIGINT UNSINGED for the safety.
